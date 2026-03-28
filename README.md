@@ -1,2 +1,2 @@
-# YuinoDataset
-Dataset for Yuino
+# yukipedia
+Dataset for YuiNo

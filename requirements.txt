@@ -1,0 +1,5 @@
+tqdm
+datasets
+huggingface_hub
+sudachipy
+sudachidict_full

@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import csv
 import argparse
 import concurrent.futures
 from datasets import load_dataset, Dataset, Features, Value
@@ -9,8 +10,17 @@ from tqdm import tqdm
 from sudachipy import tokenizer
 from sudachipy import dictionary
 
+POS_ID_FILE = "pos_id.csv"
 STATE_FILE = "resume_state.json"
 sudachi_tokenizer = dictionary.Dictionary(dict="full").create()
+
+
+POS_ID_DEF = []
+with open(POS_ID_FILE, "r", encoding="utf-8") as f:
+    reader = csv.reader(f)
+    for row in reader:
+        POS_ID_DEF.append(row[0] + "." + row[1] + "." + row[2] + "." + row[3] + "." + row[4] + "." + row[5])
+
 
 # ==========================================
 # 1. スキーマ（データ構造）の厳密な定義
@@ -54,15 +64,17 @@ def filter_no_alphanumeric(text_list):
 def process_batch(batch):
     processed_data = []
     for example in batch:
-        samples = re.split('[。？]', example["text"])[:-1]
+        samples = re.split('[。？ ]', example["text"])[:-1]
         samples = filter_no_alphanumeric(samples)
         for sample in samples:
-            token = sudachi_tokenizer.tokenize(sample, tokenizer.Tokenizer.SplitMode.A)
+            token = sudachi_tokenizer.tokenize(sample, tokenizer.Tokenizer.SplitMode.C)
             if 4 < len(token) < 128:
                 m_str = ""
                 for m in token:
-                    m_str += m.surface() + "/" + str(m.part_of_speech_id()) + " "
-                processed_data.append({"id": example["id"], "text": m_str})
+                    pos_ary = m.part_of_speech()
+                    pos = pos_ary[0] + "." + pos_ary[1] + "." + pos_ary[2] + "." + pos_ary[3] + "." + pos_ary[4] + "." + pos_ary[5]
+                    m_str += m.surface() + "/" + str(POS_ID_DEF.index(pos)) + " "
+                processed_data.append({"id": example["id"], "text": m_str.strip()})
     return processed_data, len(batch)
 
 
@@ -98,7 +110,7 @@ def main():
     parser = argparse.ArgumentParser(description='yuinotrain')
     parser.add_argument('-r', '--repo_id', default="hashimom/yukipedia")
     parser.add_argument('--data_cache_dir', default="~/hf_datasets", help="data cache path")
-    parser.add_argument('--chunk_size', type=int, default=2000000)
+    parser.add_argument('--chunk_size', type=int, default=20000000)
     parser.add_argument('--batch_size', type=int, default=10000)
     parser.add_argument('--num_processes', type=int, default=32)
     args = parser.parse_args()
@@ -219,6 +231,12 @@ def main():
         if os.path.exists(STATE_FILE):
             os.remove(STATE_FILE)
 
+    api.upload_file(
+        path_or_fileobj=POS_ID_FILE,
+        path_in_repo=POS_ID_FILE,
+        repo_id=args.repo_id,
+        repo_type="dataset"
+    )
     print("🎉 すべての処理とアップロードが完了しました！")
 
 
